@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MMIO Kurs</title>
+    <link href="src/css/site.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+
+<div id="task">
+    <H1>Транспортная задача</H1>
+    <table>
+        <thead>
+        <tr>
+            <td rowspan="2">Поставщики</td>
+            <td rowspan="2">Запасы</td>
+            <td colspan="3">Потребители</td>
+        </tr>
+        <tr>
+            <td>B1</td>
+            <td>B2</td>
+            <td>B3</td>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td>A1</td>
+            <td><input type="text" id="reserve_1"   value="30"></td>
+            <td>
+                <input type="text" id="price_11"    value="5">
+            </td>
+            <td>
+                <input type="text" id="price_12"    value="3">
+            </td>
+            <td>
+                <input type="text" id="price_13"    value="1">
+            </td>
+        </tr>
+        <tr>
+            <td>A2</td>
+            <td><input type="text" id="reserve_2"   value="20"></td>
+            <td>
+                <input type="text" id="price_21"    value="3">
+            </td>
+            <td>
+                <input type="text" id="price_22"    value="2">
+            </td>
+            <td>
+                <input type="text" id="price_23"    value="4">
+            </td>
+        </tr>
+        <tr>
+            <td>A3</td>
+            <td><input type="text" id="reserve_3"   value="30"></td>
+            <td>
+                <input type="text" id="price_31"    value="4">
+            </td>
+            <td>
+                <input type="text" id="price_32"    value="1">
+            </td>
+            <td>
+                <input type="text" id="price_33"    value="2">
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">Потребности</td>
+            <td><input type="text" id="need_1" value="15"></td>
+            <td><input type="text" id="need_2" value="20"></td>
+            <td><input type="text" id="need_3" value="25"></td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+<div id="solution">
+</div>
+
+<script src="src/javascript/transport_task.js"></script>
+</body>
+</html>
