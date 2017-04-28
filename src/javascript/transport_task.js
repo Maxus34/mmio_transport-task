@@ -43,7 +43,7 @@ class TransportTask {
             // Проверяем минимальный коэффициент таблицы.
             // Когда нет отрицательных значений решение можно считать оптимальным
             if (root_point.value >= 0) {
-                this.addSolutionText(`Решение является оптимальным`);
+                this.addSolutionText(`<h2 style="color:green;">Решение является оптимальным.</h2>`);
                 break;
             } else {
                 //Вычисляем цикл перераспределения поставок.
@@ -56,13 +56,17 @@ class TransportTask {
     }
 
     optimizeSolution(distribution, chain){
-        // Второй элемент берем как минимальный
+        // Длинна цепи не может быть меньше 4
         if (chain.length < 4){
             this.addSolutionText(`<h3 style="color:red;">Ошибка построения цепи.</h3> `);
             return;
         }
 
+        // Второй элемент берем как минимальный
         let min = distribution[chain[1].i][chain[1].j];
+
+        // Выставляем 0 в начальную вершину chain[0]
+        distribution[chain[0].i][chain[0].j] = 0;
 
         for (let i = 1; i < chain.length; i++){
             if (distribution[chain[i].i][chain[i].j] !== '-' && i % 2 === 0){
@@ -97,6 +101,17 @@ class TransportTask {
         }
 
         this.addSolutionText(`<br><br>`);
+
+        this.addSolutionText(`Цикл оптимизации: `);
+        this.addSolutionText(`[${chain[0].i}][${chain[0].j}] (+${min})`);
+        for(let i = 1; i < chain.length; i++){
+            if (i % 2 == 0){
+                this.addSolutionText(` => [${chain[i].i}][${chain[i].j}] (+${min})`);
+            } else {
+                this.addSolutionText(` => [${chain[i].i}][${chain[i].j}] (-${min})`);
+            }
+        }
+
         this.addSolutionText(this.createSolutionTable(distribution));
         this.addSolutionText(`Стоимость перевозок после оптимизации равна <b>${sum}</b>.`);
 
@@ -112,7 +127,7 @@ class TransportTask {
            // Производим поиск точки по строке.
            for (let j = 0; j < CONSUMERS_COUNT; j++){
 
-               if (distribution[i][j] !== '-'){
+               if ( (distribution[i][j] !== '-') && (distribution[i][j] != '0') ){
                    // Нашли точку, проверяем что ее не было в цепи
                    let found = false;
                    for (let ind = 1; ind < chain.length; ind++){
@@ -162,7 +177,7 @@ class TransportTask {
 
            for (let i = 0; i < PROVIDERS_COUNT; i++){
 
-               if (distribution[i][j] !== '-'){
+               if ( (distribution[i][j] !== '-') && (distribution[i][j] != '0') ){
                    // Нашли точку, проверяем что ее не было в цепи
                    let found = false;
                    for (let ind = 1; ind < chain.length; ind++){
@@ -214,59 +229,116 @@ class TransportTask {
             chain = findPointVertical(chain_start);
         }
 
-        console.log(chain);
-
         // Если оба варианта не удались.
         if (!chain){
            this.addSolutionText(`Цикл перераспределения поставок создать невозможно`);
         }
 
+        console.log(chain);
         return chain;
     }
 
     checkPotentials(distribution) {
-        this.providers[0].potential = 0;
+        // Функция выводит список потенциалов поставщиков и потребителей.
+        function createPotentialsTable(){
+            let string = '';
+            string += `<br><b>Вычислены потенциалы поставщиков и потребителей.</b>`;
+            string += `<table><tr><td>Поставщики:<ul>`;
+            this.providers.forEach( (item, i) => {
+                string += `<li>A${i} => ${item.potential};</li>`;
+            });
+            string += `</ul></td>`;
 
-        for (let i = 0; i < PROVIDERS_COUNT; i++) {
-            for (let j = 0; j < CONSUMERS_COUNT; j++) {
-                if (distribution[i][j] !== '-') {
+            string += `<td>Потребители:<ul>`;
+            this.consumers.forEach( (item, i) => {
+                string += `<li>B${i} => ${item.potential};</li>`;
+            });
+            string += `</ul></td></tr></table>`;
+            return string;
+        }
 
-                    if ((this.consumers[j].potential === undefined) &&
-                        (this.providers[i].potential !== undefined)) {
-                        this.consumers[j].potential = this.prices[i][j] - this.providers[i].potential;
-                    } else
+        // Подсчитывает и корректирует количество базисных точек.
+        function checkAndRecalculateBasis(distribution) {
+            let sum_basis = 0;
+            let need_to_add_points = 0;
 
-                    if ((this.providers[i].potential === undefined) &&
-                        (this.consumers[j].potential !== undefined)) {
-                        this.providers[i].potential = this.prices[i][j] - this.consumers[j].potential;
-                    } else
+            // Обнуление точек с нулевыми перевозками
+            for (let i = 0; i < PROVIDERS_COUNT; i++){
+                for (let j = 0; j < CONSUMERS_COUNT; j++){
+                    if (distribution[i][j] == 0){
+                        distribution[i][j] = '-';
+                    }
+                }
+            }
 
-                    if ((this.providers[i].potential === undefined) &&
-                        (this.consumers[j].potential === undefined)) {
-                        console.log("Cant calculate potentials");
-                        console.log(i);
-                        console.log(j);
+            // Подсчет количества базисных точек.
+            for (let i = 0; i < PROVIDERS_COUNT; i++) {
+                for (let j = 0; j < CONSUMERS_COUNT; j++) {
+                    if (typeof(distribution[i][j]) == 'number')
+                        sum_basis++;
+                }
+            }
+
+            // Проверка плана на вырожденность.
+            if (sum_basis >= (CONSUMERS_COUNT + PROVIDERS_COUNT - 1)) {
+                this.addSolutionText(`<br>План является невырожденным. Дальнейшее решение возможно без введения дополнительных ячеек в базис.`);
+            } else {
+                need_to_add_points = CONSUMERS_COUNT + PROVIDERS_COUNT - 1 - sum_basis;
+                this.addSolutionText(`<br>План вырожденный. Необходимо добавить ${need_to_add_points} ячеек в базис.`);
+            }
+
+            // Добавление ячеек в базис.
+            for (let i = 0; i < PROVIDERS_COUNT; i++){
+                for (let j = 0; j < CONSUMERS_COUNT; j++){
+                    if (need_to_add_points > 0){
+                        if (distribution[i][j] == '-'){
+                            distribution[i][j] = 0;
+                            need_to_add_points--;
+                            this.addSolutionText(`<br>Добавлена точка  [${i}][${j}] в базис.`);
+                        }
                     }
                 }
             }
         }
 
+        
+            var allPotentialsAreCalculated = true;
+
+            // Корректировка количества базисных точек.
+            checkAndRecalculateBasis.call(this, distribution);
+
+            // Обнуляем потенциалы и вычисляем новые.
+            this.resetPotentials();
+            for (let i = 0; i < PROVIDERS_COUNT; i++) {
+                for (let j = 0; j < CONSUMERS_COUNT; j++) {
+                    if (distribution[i][j] !== '-') {
+
+                        if ((this.consumers[j].potential === undefined) &&
+                            (this.providers[i].potential !== undefined)) {
+                            this.consumers[j].potential = this.prices[i][j] - this.providers[i].potential;
+                        } else
+
+                        if ((this.providers[i].potential === undefined) &&
+                            (this.consumers[j].potential !== undefined)) {
+                            this.providers[i].potential = this.prices[i][j] - this.consumers[j].potential;
+                        } else
+
+                        if ((this.providers[i].potential === undefined) &&
+                            (this.consumers[j].potential === undefined)) {
+                            console.log("Cant calculate potentials");
+                            console.log(i);
+                            console.log(j);
+                            allPotentialsAreCalculated = false;
+                        }
+                    }
+                }
+            }
+
+            console.log('Вычисление потенциалов');
+
         console.log(distribution);
 
-        let string = '';
-        string += `<br><b>Вычислены потенциалы поставщиков и потребителей.</b>`;
-        string += `<table><tr><td>Поставщики:<ul>`;
-        this.providers.forEach( (item, i) => {
-            string += `<li>A${i} => ${item.potential};</li>`;
-        });
-        string += `</ul></td>`;
-
-        string += `<td>Потребители:<ul>`;
-        this.consumers.forEach( (item, i) => {
-            string += `<li>B${i} => ${item.potential};</li>`;
-        });
-        string += `</ul></td></tr></table>`;
-        this.addSolutionText(string);
+        this.addSolutionText(createPotentialsTable.call(this));
     }
 
     resetPotentials() {
@@ -307,46 +379,12 @@ class TransportTask {
 
         console.log(min);
 
-        distribution[min.i][min.j] = 0;
+        distribution[min.i][min.j] = 'V';
 
         return min;
     }
 
     calculateNorthWestMethod() {
-        function checkAndRecalculateBasis(distribution) {
-            let sum_basis = 0;
-            let need_to_add_points = 0;
-
-            // Подсчет количества базисных точек.
-            for (let i = 0; i < PROVIDERS_COUNT; i++) {
-                for (let j = 0; j < CONSUMERS_COUNT; j++) {
-                    if (typeof(distribution[i][j]) == 'number')
-                        sum_basis++;
-                }
-            }
-
-            // Проверка плана на вырожденность.
-            if (sum_basis >= (CONSUMERS_COUNT + PROVIDERS_COUNT - 1)) {
-                this.addSolutionText(`<br>Исходный план является невырожденным.`);
-            } else {
-
-                need_to_add_points = CONSUMERS_COUNT + PROVIDERS_COUNT - 1 - sum_basis;
-                this.addSolutionText(`<br>План вырожденный. Необходимо добавить ${need_to_add_points}шт в базис.`);
-            }
-
-            for (let i = 1; i < PROVIDERS_COUNT; i++){
-                for (let j = 0; j < CONSUMERS_COUNT; j++){
-
-                    if (need_to_add_points > 0){
-                        if (distribution[i-1][j] !== '-' && distribution[i][j+1]){
-                            distribution[i][j] = 0;
-                            need_to_add_points--;
-                            this.addSolutionText(`<br>Добавлена точка  [${i}][${j}] в базис.`);
-                        }
-                    }
-                }
-            }
-        }
 
         this.addSolutionText(`<br><b>Расчет опорного плана методом северо-западного угла.<b> `);
 
@@ -393,7 +431,7 @@ class TransportTask {
             }
         }
 
-        checkAndRecalculateBasis.call(this, distribution);
+        //checkAndRecalculateBasis.call(this, distribution);
 
         this.addSolutionText(this.createSolutionTable(distribution));
         this.addSolutionText(`Сумма перевозок в опорном плате равна <b>${sum}</b>. `);
