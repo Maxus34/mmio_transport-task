@@ -14,15 +14,16 @@ let PROVIDERS_COUNT = 3;
 let CONSUMERS_COUNT = 3;
 
 class TransportTask {
+
     constructor() {
-        this.needs     = [];
-        this.prices    = [];
-        this.reserves  = [];
+        this.needs = [];
+        this.prices = [];
+        this.reserves = [];
 
         this.providers = [];
         this.consumers = [];
 
-        this.taskDiv     = document.getElementById('task');
+        this.taskDiv = document.getElementById('task');
         this.solutionDiv = document.getElementById('solution');
 
         this.getTaskValues();
@@ -36,18 +37,26 @@ class TransportTask {
 
         let basis_distribution = this.calculateNorthWestMethod();
 
-        for (let i = 0; i < 5; i++){
+        for (let i = 0; i < 5; i++) {
+            console.log(` `);
+            console.log(`iteration ${i}`);
             this.checkPotentials(basis_distribution);
-            let root_point = this.checkSolution(basis_distribution);
+            let root_points = this.checkSolution(basis_distribution);
 
             // Проверяем минимальный коэффициент таблицы.
             // Когда нет отрицательных значений решение можно считать оптимальным
-            if (root_point.value >= 0) {
+            if (root_points.value >= 0) {
                 this.addSolutionText(`<h2 style="color:green;">Решение является оптимальным.</h2>`);
                 break;
             } else {
                 //Вычисляем цикл перераспределения поставок.
-                let chain = this.getChainForOptimizeSolution(root_point, basis_distribution);
+                let chain = this.getChainForOptimizeSolution(root_points, basis_distribution);
+
+                if (!chain){
+                    this.addSolutionText(`<h3 style="color:red">Ошибка построения цикла перераспределения ресурсов. Дальнейшее решение невозможно. </h3>`);
+                    return;
+                }
+
                 this.optimizeSolution(basis_distribution, chain);
             }
 
@@ -55,38 +64,37 @@ class TransportTask {
         }
     }
 
-    optimizeSolution(distribution, chain){
-        // Длинна цепи не может быть меньше 4
-        if (chain.length < 4){
-            this.addSolutionText(`<h3 style="color:red;">Ошибка построения цепи.</h3> `);
-            return;
-        }
+    optimizeSolution(distribution, chain) {
 
         // Второй элемент берем как минимальный
-        let min = distribution[chain[1].i][chain[1].j];
+        let min = distribution[ chain[1].i ][ chain[1].j ];
 
-        // Выставляем 0 в начальную вершину chain[0]
-        distribution[chain[0].i][chain[0].j] = 0;
+        // Выполняем поиск минимума
+        chain.forEach((item, i) => {
+            if (i == 0) return;
 
-        for (let i = 1; i < chain.length; i++){
-            if (distribution[chain[i].i][chain[i].j] !== '-' && i % 2 === 0){
-                if (distribution[chain[i].i][chain[i].j] < min){
-                    min = distribution[chain[i].i][chain[i].j];
+            if (distribution[ item.i ][ item.j ] !== '-' && i % 2 === 0) {
+                if (distribution[ item.i ][ item.j ] < min) {
+                    min = distribution[ item.i ][ item.j ];
                 }
             }
-        }
+        });
+        console.log(`Min = ${min}`);
 
-        console.log(min);
-
-        for (let i = 0; i < chain.length; i++){
-            if (distribution[chain[i].i][chain[i].j] !== '-'){
+        // Производим оптимизацию.
+        for (let i = 0; i < chain.length; i++) {
+            if (distribution[chain[i].i][chain[i].j] !== '-') {
                 if (i % 2 === 0) {
                     distribution[chain[i].i][chain[i].j] += min;
                 } else {
                     distribution[chain[i].i][chain[i].j] -= min;
                 }
-            } else {
-                distribution[chain[i].i][chain[i].j] = min;
+
+                // Удаляем из базиса ячейку с нулевой перевозкой.
+                if (distribution[chain[i].i][chain[i].j] == 0){
+                    distribution[chain[i].i][chain[i].j] = '-';
+                }
+
             }
         }
 
@@ -104,8 +112,8 @@ class TransportTask {
 
         this.addSolutionText(`Цикл оптимизации: `);
         this.addSolutionText(`[${chain[0].i}][${chain[0].j}] (+${min})`);
-        for(let i = 1; i < chain.length; i++){
-            if (i % 2 == 0){
+        for (let i = 1; i < chain.length; i++) {
+            if (i % 2 == 0) {
                 this.addSolutionText(` => [${chain[i].i}][${chain[i].j}] (+${min})`);
             } else {
                 this.addSolutionText(` => [${chain[i].i}][${chain[i].j}] (-${min})`);
@@ -118,139 +126,178 @@ class TransportTask {
     }
 
     getChainForOptimizeSolution(root_point, distribution) {
-       function findPointHorizontal(chain) {
-           let firstElem = chain[0],
-               lastElem  = chain[chain.length-1],
-               i         = lastElem.i,
-               points    = [];
-
-           // Производим поиск точки по строке.
-           for (let j = 0; j < CONSUMERS_COUNT; j++){
-
-               if ( (distribution[i][j] !== '-') && (distribution[i][j] != '0') ){
-                   // Нашли точку, проверяем что ее не было в цепи
-                   let found = false;
-                   for (let ind = 1; ind < chain.length; ind++){
-                       if (chain[ind].i == i && chain[ind].j == j){
-                           found = true;
-                       }
-                   }
-
-                   // Если не нашли точку в цепи, то берем ее
-                   if (!found){
-                       points.push( new Point(i, j, distribution[i][j]) );
-                   }
-
-               }
-
-           }
-
-           // Если в ходе поиска по строке была найдена хотя бы одна точка.
-           if (points.length > 0){
-
-               for (let i = 0; i < points.length; i++){
-
-                   // Если найдена конечная точка, возвращаем цепь.
-                   if ( (firstElem.i == points[i].i) && (firstElem.j == points[i].j) && chain.length>3) {
-                       return chain;
-                   }
-
-                   let chain_tmp = chain.slice(0, chain.length);
-                       chain_tmp.push(points[i]);
-
-                   let result = findPointVertical(chain_tmp);
-                   if (result){
-                       return result;
-                   }
-               }
-
-           } else {
-               return false;
-           }
-       };
-
-       function findPointVertical(chain){
+        function findPointHorizontal(chain) {
             let firstElem = chain[0],
-                lastElem  = chain[chain.length-1],
-                j         = lastElem.j,
-                points    = [];
+                lastElem = chain[chain.length - 1],
+                i = lastElem.i,
+                points = [];
 
-           for (let i = 0; i < PROVIDERS_COUNT; i++){
+            // Производим поиск точки по строке.
+            for (let j = 0; j < CONSUMERS_COUNT; j++) {
 
-               if ( (distribution[i][j] !== '-') && (distribution[i][j] != '0') ){
-                   // Нашли точку, проверяем что ее не было в цепи
-                   let found = false;
-                   for (let ind = 1; ind < chain.length; ind++){
-                       if (chain[ind].i == i && chain[ind].j == j){
-                           found = true;
-                       }
-                   }
+                if ((distribution[i][j] !== '-') && (distribution[i][j] != '0')) {
+                    // Нашли точку, проверяем что ее не было в цепи
+                    let found = false;
+                    for (let ind = 1; ind < chain.length; ind++) {
+                        if (chain[ind].i == i && chain[ind].j == j) {
+                            found = true;
+                        }
+                    }
 
-                   // Если не нашли точку в цепи, то берем ее
-                   if (!found){
-                       points.push ( new Point(i, j, distribution[i][j]) );
-                   }
-               }
+                    // Если не нашли точку в цепи, то берем ее
+                    if (!found) {
+                        points.push(new Point(i, j, distribution[i][j]));
+                    }
 
-           }
+                }
 
-           // Если в ходе поиска по столбцу была найдена хотя бы одна точка,
-           // продолжаем поиск по строкам.
-           if (points.length > 0){
+                // Если цепь достаточно большая чтобы вернуться к вершине и она найдена
+                if (chain.length > 3){
+                    if (firstElem.i == i && firstElem.j == j){
+                        return chain;
+                    }
+                }
+            }
 
-               for (let i = 0; i < points.length; i++){
+            // Если в ходе поиска по строке была найдена хотя бы одна точка.
+            if (points.length > 0) {
 
-                   // Если найдена конечная точка, возвращаем цепь.
-                   if ( (firstElem.i == points[i].i) && (firstElem.j == points[i].j) && chain.length>3) {
-                       return chain;
-                   }
+                for (let i = 0; i < points.length; i++) {
 
-                   let chain_tmp = chain.slice(0, chain.length);
-                   chain_tmp.push(points[i]);
+                    // Если найдена конечная точка, возвращаем цепь.
+                    /*if ((firstElem.i == points[i].i) && (firstElem.j == points[i].j) && chain.length > 3) {
+                        return chain;
+                    }*/
 
-                   let result = findPointHorizontal(chain_tmp);
-                   if (result){
-                       return result;
-                   }
-               }
+                    let chain_tmp = chain.slice(0, chain.length);
+                    chain_tmp.push(points[i]);
 
-           } else {
-               return false;
-           }
-       };
+                    let result = findPointVertical(chain_tmp);
+                    if (result) {
+                        return result;
+                    }
+                }
+
+            } else {
+                return false;
+            }
+        }
+
+        function findPointVertical(chain) {
+            let firstElem = chain[0],
+                lastElem = chain[chain.length - 1],
+                j = lastElem.j,
+                points = [];
+
+            for (let i = 0; i < PROVIDERS_COUNT; i++) {
+
+                if ((distribution[i][j] !== '-') && (distribution[i][j] != '0')) {
+                    // Нашли точку, проверяем что ее не было в цепи
+                    let found = false;
+                    for (let ind = 1; ind < chain.length; ind++) {
+                        if (chain[ind].i == i && chain[ind].j == j) {
+                            found = true;
+                        }
+                    }
+
+                    // Если не нашли точку в цепи, то берем ее
+                    if (!found) {
+                        points.push(new Point(i, j, distribution[i][j]));
+                    }
+                }
+
+
+                // Если цепь достаточно большая чтобы вернуться к вершине и она найдена
+                if (chain.length > 3){
+                    if (firstElem.i == i && firstElem.j == j){
+                        return chain;
+                    }
+                }
+            }
+
+            // Если в ходе поиска по столбцу была найдена хотя бы одна точка,
+            // продолжаем поиск по строкам.
+            if (points.length > 0) {
+
+                for (let i = 0; i < points.length; i++) {
+
+                    // Если найдена конечная точка, возвращаем цепь.
+                    /*if ((firstElem.i == points[i].i) && (firstElem.j == points[i].j) && chain.length > 3) {
+                        return chain;
+                    }*/
+
+                    let chain_tmp = chain.slice(0, chain.length);
+                    chain_tmp.push(points[i]);
+
+                    let result = findPointHorizontal(chain_tmp);
+                    if (result) {
+                        return result;
+                    }
+                }
+
+            } else {
+                return false;
+            }
+        }
 
         let chain_start = [root_point];
 
         // Пробуем начать поиск цепи по горизонтали.
         let chain = findPointHorizontal(chain_start);
 
-        if (!chain){
+        if (!chain) {
             // Если поиск по горизонтали не удался, ищем по вертикали.
             chain = findPointVertical(chain_start);
-        }
-
-        // Если оба варианта не удались.
-        if (!chain){
-           this.addSolutionText(`Цикл перераспределения поставок создать невозможно`);
         }
 
         console.log(chain);
         return chain;
     }
 
+    checkSolution(distribution) {
+        let rating = [];
+
+        for (let i = 0; i < PROVIDERS_COUNT; i++) {
+            rating.push([]);
+            for (let j = 0; j < CONSUMERS_COUNT; j++) {
+                if (distribution[i][j] === '-') {
+                    rating[i][j] = this.prices[i][j] - this.providers[i].potential - this.consumers[j].potential;
+                } else {
+                    rating[i][j] = 0;
+                }
+            }
+        }
+
+        let min = new Point(null, null, 1000000);
+
+        for (let i = 0; i < PROVIDERS_COUNT; i++) {
+            for (let j = 0; j < CONSUMERS_COUNT; j++) {
+                if (rating[i][j] < min.value) {
+                    min = new Point(i, j, rating[i][j]);
+                }
+            }
+        }
+
+        console.log(min);
+
+        distribution[min.i][min.j] = 0;
+
+        return min;
+    }
+
     checkPotentials(distribution) {
         // Функция выводит список потенциалов поставщиков и потребителей.
-        function createPotentialsTable(){
+        function createPotentialsTable() {
             let string = '';
             string += `<br><b>Вычислены потенциалы поставщиков и потребителей.</b>`;
             string += `<table><tr><td>Поставщики:<ul>`;
-            this.providers.forEach( (item, i) => {
+            this.providers.forEach((item, i) => {
                 string += `<li>A${i} => ${item.potential};</li>`;
             });
             string += `</ul></td>`;
 
             string += `<td>Потребители:<ul>`;
-            this.consumers.forEach( (item, i) => {
+            this.consumers.forEach((item, i) => {
                 string += `<li>B${i} => ${item.potential};</li>`;
             });
             string += `</ul></td></tr></table>`;
@@ -263,9 +310,9 @@ class TransportTask {
             let need_to_add_points = 0;
 
             // Обнуление точек с нулевыми перевозками
-            for (let i = 0; i < PROVIDERS_COUNT; i++){
-                for (let j = 0; j < CONSUMERS_COUNT; j++){
-                    if (distribution[i][j] == 0){
+            for (let i = 0; i < PROVIDERS_COUNT; i++) {
+                for (let j = 0; j < CONSUMERS_COUNT; j++) {
+                    if (distribution[i][j] == 0) {
                         distribution[i][j] = '-';
                     }
                 }
@@ -288,10 +335,10 @@ class TransportTask {
             }
 
             // Добавление ячеек в базис.
-            for (let i = 0; i < PROVIDERS_COUNT; i++){
-                for (let j = 0; j < CONSUMERS_COUNT; j++){
-                    if (need_to_add_points > 0){
-                        if (distribution[i][j] == '-'){
+            for (let i = 0; i < PROVIDERS_COUNT; i++) {
+                for (let j = 0; j < CONSUMERS_COUNT; j++) {
+                    if (need_to_add_points > 0) {
+                        if (distribution[i][j] == '-') {
                             distribution[i][j] = 0;
                             need_to_add_points--;
                             this.addSolutionText(`<br>Добавлена точка  [${i}][${j}] в базис.`);
@@ -301,18 +348,53 @@ class TransportTask {
             }
         }
 
-        
-            var allPotentialsAreCalculated = true;
 
-            // Корректировка количества базисных точек.
-            checkAndRecalculateBasis.call(this, distribution);
+        var allPotentialsAreCalculated = true;
 
-            // Обнуляем потенциалы и вычисляем новые.
+        // Корректировка количества базисных точек.
+        checkAndRecalculateBasis.call(this, distribution);
+
+
+        let potentialsAreCalculated = true;
+        // Обнуляем потенциалы и вычисляем новые.
+        // Первая попытка вычислить потенциалы из левого верхнего угла
+        // при 0 потенциале у первого поставщика.
+        this.resetPotentials();
+        this.providers[0].potential = 0;
+        for (let i = 0; i < PROVIDERS_COUNT; i++) {
+            for (let j = 0; j < CONSUMERS_COUNT; j++) {
+                if (distribution[i][j] !== '-') {
+
+                    if ((this.consumers[j].potential === undefined) &&
+                        (this.providers[i].potential !== undefined)) {
+                        this.consumers[j].potential = this.prices[i][j] - this.providers[i].potential;
+                    } else
+
+                    if ((this.providers[i].potential === undefined) &&
+                        (this.consumers[j].potential !== undefined)) {
+                        this.providers[i].potential = this.prices[i][j] - this.consumers[j].potential;
+                    } else
+
+                    if ((this.providers[i].potential === undefined) &&
+                        (this.consumers[j].potential === undefined)) {
+                        console.log("Cant calculate potentials (1)");
+                        console.log(i);
+                        console.log(j);
+                        potentialsAreCalculated  = false;
+                    }
+                }
+            }
+        }
+
+        // Если при первой попытке не вышло рассчитать все потенциалы
+        // пробуем рассчитать потенциалы из правого нижнего угла при 0 потенциале у последнего поставщика.
+        if (!potentialsAreCalculated){
+            console.log(`Second try to calculate potentials`);
             this.resetPotentials();
-            for (let i = 0; i < PROVIDERS_COUNT; i++) {
-                for (let j = 0; j < CONSUMERS_COUNT; j++) {
+            this.providers[PROVIDERS_COUNT-1].potential = 0;
+            for (let i = PROVIDERS_COUNT-1; i >= 0; i--) {
+                for (let j = CONSUMERS_COUNT-1; j >= 0; j--) {
                     if (distribution[i][j] !== '-') {
-
                         if ((this.consumers[j].potential === undefined) &&
                             (this.providers[i].potential !== undefined)) {
                             this.consumers[j].potential = this.prices[i][j] - this.providers[i].potential;
@@ -325,18 +407,14 @@ class TransportTask {
 
                         if ((this.providers[i].potential === undefined) &&
                             (this.consumers[j].potential === undefined)) {
-                            console.log("Cant calculate potentials");
+                            console.log("Cant calculate potentials (2)");
                             console.log(i);
                             console.log(j);
-                            allPotentialsAreCalculated = false;
                         }
                     }
                 }
             }
-
-            console.log('Вычисление потенциалов');
-
-        console.log(distribution);
+        }
 
         this.addSolutionText(createPotentialsTable.call(this));
     }
@@ -350,38 +428,7 @@ class TransportTask {
             item.potential = undefined;
         })
 
-        this.providers[0].potential = 0;
-    }
-
-    checkSolution(distribution) {
-        let rating = [];
-
-        for (let i = 0; i < PROVIDERS_COUNT; i++) {
-            rating.push([]);
-            for (let j = 0; j < CONSUMERS_COUNT; j++) {
-                if (distribution[i][j] === '-') {
-                    rating[i][j] = this.prices[i][j] - this.providers[i].potential - this.consumers[j].potential;
-                } else {
-                    rating[i][j] = 0;
-                }
-            }
-        }
-
-        let min = new Point(null, null, Math.pow(10, 10));
-
-        for (let i = 0; i < PROVIDERS_COUNT; i++) {
-            for (let j = 0; j < CONSUMERS_COUNT; j++) {
-                if (rating[i][j] < min.value) {
-                    min = new Point(i, j, rating[i][j]);
-                }
-            }
-        }
-
-        console.log(min);
-
-        distribution[min.i][min.j] = 'V';
-
-        return min;
+        //this.providers[0].potential = 0;
     }
 
     calculateNorthWestMethod() {
@@ -649,7 +696,9 @@ class TransportTask {
     addSolutionText(text) {
         this.solutionDiv.innerHTML += text;
     }
+
 }
+
 
 class Provider {
     constructor(reserve, isFictitious = false) {
