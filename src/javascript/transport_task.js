@@ -37,7 +37,7 @@ class TransportTask {
 
         let basis_distribution = this.calculateNorthWestMethod();
 
-        for (let i = 0; i < 15; i++) {
+        for (let i = 0; i < 10; i++) {
             console.log(` `);
             console.log(`iteration ${i}`);
             this.checkPotentials(basis_distribution);
@@ -73,9 +73,12 @@ class TransportTask {
         chain.forEach((item, i) => {
             if (i == 0) return;
 
-            if (distribution[ item.i ][ item.j ] !== '-' && i % 2 === 0) {
-                if (distribution[ item.i ][ item.j ] < min) {
-                    min = distribution[ item.i ][ item.j ];
+            if ( (distribution[ item.i ][ item.j ] !== '-') ) {
+
+                if (i % 2 !== 0){
+                    if (distribution[ item.i ][ item.j ] < min) {
+                        min = distribution[ item.i ][ item.j ];
+                    }
                 }
             }
         });
@@ -104,11 +107,14 @@ class TransportTask {
         let sum = 0;
         for (let i = 0; i < PROVIDERS_COUNT; i++) {
             for (let j = 0; j < CONSUMERS_COUNT; j++) {
-                if (typeof(distribution[i][j]) === 'number') {
+                if (distribution[i][j] !== '-') {
                     sum += distribution[i][j] * this.prices[i][j];
                 }
             }
         }
+
+        console.log(distribution);
+        console.log(this.prices);
 
         this.addSolutionText(`<br><br>`);
 
@@ -128,6 +134,35 @@ class TransportTask {
     }
 
     getChainForOptimizeSolution(root_points, distribution) {
+        function isCorrectChain(chain){
+
+            for (let i = 0; i < PROVIDERS_COUNT; i++){
+                let count_by_current_index = 0;
+                chain.forEach(function (item) {
+                    if (item.i == i){
+                        count_by_current_index++;
+                    }
+                });
+
+                if (count_by_current_index % 2 !== 0)
+                    return false;
+            }
+
+            for (let j = 0; j < PROVIDERS_COUNT; j++){
+                let count_by_current_index = 0;
+                chain.forEach(function (item) {
+                    if (item.j == j){
+                        count_by_current_index++;
+                    }
+                });
+
+                if (count_by_current_index % 2 !== 0)
+                    return false;
+            }
+
+            return true;
+        }
+
         function findPointHorizontal(chain) {
             let firstElem = chain[0],
                 lastElem = chain[chain.length - 1],
@@ -156,7 +191,13 @@ class TransportTask {
                 // Если цепь достаточно большая чтобы вернуться к вершине и она найдена
                 if (chain.length > 3){
                     if (firstElem.i == i && firstElem.j == j){
-                        return chain;
+
+                        if (isCorrectChain(chain)){
+                            return chain;
+                        } else{
+                            return false;
+                        }
+
                     }
                 }
             }
@@ -212,7 +253,11 @@ class TransportTask {
                 // Если цепь достаточно большая чтобы вернуться к вершине и она найдена
                 if (chain.length > 3){
                     if (firstElem.i == i && firstElem.j == j){
-                        return chain;
+                        if (isCorrectChain(chain)){
+                            return chain;
+                        } else{
+                            return false;
+                        }
                     }
                 }
             }
@@ -242,7 +287,9 @@ class TransportTask {
             }
         }
 
-        var chain = false;
+
+
+        let chain = false;
 
         for (let i = 0; i < root_points.length; i++){
 
@@ -277,7 +324,7 @@ class TransportTask {
                 if (distribution[i][j] === '-') {
                     rating[i][j] = this.prices[i][j] - this.providers[i].potential - this.consumers[j].potential;
 
-                    if (rating[i][j] <= 0)
+                    if (rating[i][j] < 0)
                         root_points.push( new Point(i, j, rating[i][j]));
 
                 } else {
@@ -348,18 +395,82 @@ class TransportTask {
                 this.addSolutionText(`<br>План вырожденный. Необходимо добавить ${need_to_add_points} ячеек в базис.`);
             }
 
-            // Добавление ячеек в базис.
-            for (let i = 0; i < PROVIDERS_COUNT; i++) {
-                for (let j = 0; j < CONSUMERS_COUNT; j++) {
-                    if (need_to_add_points > 0) {
-                        if (distribution[i][j] == '-') {
-                            distribution[i][j] = 0;
-                            need_to_add_points--;
-                            this.addSolutionText(`<br>Добавлена точка  [${i}][${j}] в базис.`);
-                        }
+            console.log(`Adding ${need_to_add_points} points to basis.`);
+
+            while(need_to_add_points > 0){
+                let i = (Math.round(Math.random() * 1000) % (PROVIDERS_COUNT-1)) ;
+                let j = (Math.round(Math.random() * 1000) % (CONSUMERS_COUNT-1)) ;
+
+                if (distribution[i][j] == '-'){
+                    if ( distribution[i+1][j]   !== '-' ||
+                         distribution[i+1][j+1] !== '-' ||
+                         distribution[i][j+1]   !== '-'  )
+                    {
+                        distribution[i][j] = 0;
+                        need_to_add_points--;
+                        this.addSolutionText(`<br>Добавлена точка  [${i}][${j}] в базис.`);
                     }
                 }
             }
+        }
+
+        // Функции для вычисления потенциалов потребителей и поставщиков.
+        let prices    = this.prices;
+        let providers = this.providers;
+        let consumers = this.consumers;
+
+        function calcConsumersPotentials(provider_index, counter){
+            let i = provider_index;
+            let need_to_calc = [];
+
+            // Подсчет потенциалов пользователей.
+            for (let j = 0; j < CONSUMERS_COUNT; j++){
+
+                if (distribution[i][j] !== '-'){
+
+                    if (consumers[j].potential == undefined){
+                        consumers[j].potential = prices[i][j] - providers[i].potential;
+                        need_to_calc.push(j);
+                    }
+
+                }
+
+            }
+
+            counter--;
+
+            if (counter < 0)
+                return;
+
+            need_to_calc.forEach(function(item){
+                calcProvidersPotentials(item, counter);
+            });
+        }
+
+        function calcProvidersPotentials(consumer_index, counter){
+            let j = consumer_index;
+            let need_to_calc = [];
+
+            for (let i = 0; i < PROVIDERS_COUNT; i++){
+
+                if (distribution[i][j] !== '-'){
+
+                    if (providers[i].potential == undefined){
+                        providers[i].potential = prices[i][j] - consumers[j].potential;
+                        need_to_calc.push(i);
+                    }
+
+                }
+            }
+
+            counter--;
+
+            if (counter < 0)
+                return;
+
+            need_to_calc.forEach(function(item){
+                calcConsumersPotentials(item, counter);
+            });
         }
 
 
@@ -375,7 +486,9 @@ class TransportTask {
         // при 0 потенциале у первого поставщика.
         this.resetPotentials();
         this.providers[0].potential = 0;
-        for (let i = 0; i < PROVIDERS_COUNT; i++) {
+        calcConsumersPotentials(0, 5);
+
+        /*for (let i = 0; i < PROVIDERS_COUNT; i++) {
             for (let j = 0; j < CONSUMERS_COUNT; j++) {
                 if (distribution[i][j] !== '-') {
 
@@ -398,7 +511,7 @@ class TransportTask {
                     }
                 }
             }
-        }
+        }*/
 
         // Если при первой попытке не вышло рассчитать все потенциалы
         // пробуем рассчитать потенциалы из правого нижнего угла при 0 потенциале у последнего поставщика.
@@ -519,7 +632,7 @@ class TransportTask {
         for (let i = 0; i < PROVIDERS_COUNT; i++) {
             this.prices.push([]);
             for (let j = 0; j < CONSUMERS_COUNT; j++) {
-                this.prices[i].push(prices_inputs[i * PROVIDERS_COUNT + j].value * 1);
+                this.prices[i].push(prices_inputs[i * CONSUMERS_COUNT + j].value * 1);
             }
         }
 
