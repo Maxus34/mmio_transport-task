@@ -37,7 +37,7 @@ class TransportTask {
 
         let basis_distribution = this.calculateNorthWestMethod();
 
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 15; i++) {
             console.log(` `);
             console.log(`iteration ${i}`);
             this.checkPotentials(basis_distribution);
@@ -45,7 +45,7 @@ class TransportTask {
 
             // Проверяем минимальный коэффициент таблицы.
             // Когда нет отрицательных значений решение можно считать оптимальным
-            if (root_points.value >= 0) {
+            if (root_points.length < 1) {
                 this.addSolutionText(`<h2 style="color:green;">Решение является оптимальным.</h2>`);
                 break;
             } else {
@@ -95,6 +95,8 @@ class TransportTask {
                     distribution[chain[i].i][chain[i].j] = '-';
                 }
 
+            } else {
+                distribution[chain[i].i][chain[i].j] = min;
             }
         }
 
@@ -125,7 +127,7 @@ class TransportTask {
 
     }
 
-    getChainForOptimizeSolution(root_point, distribution) {
+    getChainForOptimizeSolution(root_points, distribution) {
         function findPointHorizontal(chain) {
             let firstElem = chain[0],
                 lastElem = chain[chain.length - 1],
@@ -240,49 +242,61 @@ class TransportTask {
             }
         }
 
-        let chain_start = [root_point];
+        var chain = false;
 
-        // Пробуем начать поиск цепи по горизонтали.
-        let chain = findPointHorizontal(chain_start);
+        for (let i = 0; i < root_points.length; i++){
 
-        if (!chain) {
-            // Если поиск по горизонтали не удался, ищем по вертикали.
-            chain = findPointVertical(chain_start);
+            console.log(`Trying to find chain with vertex in [${root_points[i].i}][${root_points[i].j}]`);
+
+            let chain_start = [ root_points[i] ];
+
+            // Пробуем начать поиск цепи по горизонтали.
+            let chain = findPointHorizontal(chain_start);
+
+            if (!chain) {
+                // Если поиск по горизонтали не удался, ищем по вертикали.
+                chain = findPointVertical(chain_start);
+                console.log(`[x] Finding a chain by vertex in[${root_points[i].i}][${root_points[i].j}] failed.`);
+
+            } else {
+                console.log(chain);
+                return chain;
+            }
         }
 
-        console.log(chain);
         return chain;
     }
 
     checkSolution(distribution) {
         let rating = [];
+        let root_points = [];
 
         for (let i = 0; i < PROVIDERS_COUNT; i++) {
             rating.push([]);
             for (let j = 0; j < CONSUMERS_COUNT; j++) {
                 if (distribution[i][j] === '-') {
                     rating[i][j] = this.prices[i][j] - this.providers[i].potential - this.consumers[j].potential;
+
+                    if (rating[i][j] <= 0)
+                        root_points.push( new Point(i, j, rating[i][j]));
+
                 } else {
                     rating[i][j] = 0;
                 }
             }
         }
 
-        let min = new Point(null, null, 1000000);
+        root_points.sort( function (a, b) {
+            if (a.value > b.value)
+                return 1;
 
-        for (let i = 0; i < PROVIDERS_COUNT; i++) {
-            for (let j = 0; j < CONSUMERS_COUNT; j++) {
-                if (rating[i][j] < min.value) {
-                    min = new Point(i, j, rating[i][j]);
-                }
-            }
-        }
+            if (a.value < b.value)
+                return -1;
+        });
 
-        console.log(min);
+        console.log(root_points);
 
-        distribution[min.i][min.j] = 0;
-
-        return min;
+        return root_points;
     }
 
     checkPotentials(distribution) {
