@@ -7,8 +7,28 @@
 </head>
 <body>
 
-<div id="task">
+<div id="head">
     <H1>Транспортная задача</H1>
+
+    <div>
+        <label for="consumers-count">
+            Количество потребителей
+            <input id="consumers-count" type="number" value="3">
+        </label>
+    </div>
+    <div>
+        <label for="providers-count">
+            Количество поставщиков
+            <input id="providers-count" type="number" value="3">
+        </label>
+    </div>
+    <button id="create-table">Создать таблицу</button>
+    <button id="calculate-task">Произвести расчеты</button>
+    <br><br>
+</div>
+
+<div id="task">
+    <!-- Тестовый вариант транспортной задачи-->
     <table>
         <thead>
         <tr>
@@ -82,6 +102,7 @@
         </tbody>
     </table>
 </div>
+
 <div id="solution">
 </div>
 

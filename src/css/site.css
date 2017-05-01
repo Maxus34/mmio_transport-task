@@ -1,5 +1,6 @@
-div#task, div#solution{
-    margin: 10px 20px 10px 20px;
+div#head, div#task, div#solution{
+    margin: 10px 30px 10px 100px;
+    width: 60%;
 }
 
 table{
@@ -19,6 +20,11 @@ td input[type = 'text']{
     text-align: center;
     width: 40px;
     margin: 1px;
+}
+
+input[type="number"]{
+    width: 40px;
+    margin: 0px 0px 5px 10px;
 }
 
 td p.consumer,

@@ -10,34 +10,30 @@ const RESERVE_LABEL = 'Запасы';
 const CONSUMERS_LABEL = 'Потребители';
 const NEEDS_LABEL = 'Потребности';
 
-let PROVIDERS_COUNT = 3;
-let CONSUMERS_COUNT = 3;
+let PROVIDERS_COUNT      = 3;
+let CONSUMERS_COUNT      = 4;
+let MAX_ITERATIONS_COUNT = 10;
 
 class TransportTask {
 
     constructor() {
-        this.needs = [];
-        this.prices = [];
-        this.reserves = [];
-
-        this.providers = [];
-        this.consumers = [];
 
         this.taskDiv = document.getElementById('task');
         this.solutionDiv = document.getElementById('solution');
 
-        this.getTaskValues();
-        this.solveTheTask();
     }
 
     solveTheTask() {
+        this.solutionDiv.innerHTML = "";
+
+        this.getTaskValues();
         this.addSolutionText(`<hr><h3>Решение задачи</h3>`);
         this.createProvidersAndConsumers();
         this.checkAndSolveOpenTask();
 
         let basis_distribution = this.calculateNorthWestMethod();
 
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < MAX_ITERATIONS_COUNT; i++) {
             console.log(` `);
             console.log(`iteration ${i}`);
             this.checkPotentials(basis_distribution);
@@ -61,6 +57,11 @@ class TransportTask {
             }
 
             this.resetPotentials();
+
+            if (i == MAX_ITERATIONS_COUNT-1){
+                this.addSolutionText(`<h2 style="color:red">Количество итераций расчета превысило максимальное значение. 
+                Возможно решение задачи зациклилось или необходимо увеличить переменную MAX_ITERATIONS_COUNT=${MAX_ITERATIONS_COUNT}.</h2>`);
+            }
         }
     }
 
@@ -188,6 +189,22 @@ class TransportTask {
 
                 }
 
+                // Для четных элементов цепи можно выбирать нулевые точки.
+                if (chain.length % 2 == 0){
+                    // Нашли точку, проверяем что ее не было в цепи
+                    let found = false;
+                    for (let ind = 1; ind < chain.length; ind++) {
+                        if (chain[ind].i == i && chain[ind].j == j) {
+                            found = true;
+                        }
+                    }
+
+                    // Если не нашли точку в цепи, то берем ее
+                    if (!found) {
+                        points.push(new Point(i, j, distribution[i][j]));
+                    }
+                }
+
                 // Если цепь достаточно большая чтобы вернуться к вершине и она найдена
                 if (chain.length > 3){
                     if (firstElem.i == i && firstElem.j == j){
@@ -201,6 +218,18 @@ class TransportTask {
                     }
                 }
             }
+
+            points.sort(function (a, b){
+                let delta_a = Math.abs(lastElem.j - a.j),
+                    delta_b = Math.abs(lastElem.j - b.j);
+
+                if (delta_a > delta_b)
+                    return 1;
+
+                if (delta_a < delta_b)
+                    return -1;
+            });
+
 
             // Если в ходе поиска по строке была найдена хотя бы одна точка.
             if (points.length > 0) {
@@ -249,6 +278,21 @@ class TransportTask {
                     }
                 }
 
+                // Для четных элементов цепи можно выбирать нулевые точки.
+                if (chain.length % 2 == 0){
+                    // Нашли точку, проверяем что ее не было в цепи
+                    let found = false;
+                    for (let ind = 1; ind < chain.length; ind++) {
+                        if (chain[ind].i == i && chain[ind].j == j) {
+                            found = true;
+                        }
+                    }
+
+                    // Если не нашли точку в цепи, то берем ее
+                    if (!found) {
+                        points.push(new Point(i, j, distribution[i][j]));
+                    }
+                }
 
                 // Если цепь достаточно большая чтобы вернуться к вершине и она найдена
                 if (chain.length > 3){
@@ -262,16 +306,23 @@ class TransportTask {
                 }
             }
 
+
+            points.sort(function (a, b){
+                let delta_a = Math.abs(lastElem.i - a.i),
+                    delta_b = Math.abs(lastElem.i - b.i);
+
+                if (delta_a > delta_b)
+                    return 1;
+
+                if (delta_a < delta_b)
+                    return -1;
+            });
+
             // Если в ходе поиска по столбцу была найдена хотя бы одна точка,
             // продолжаем поиск по строкам.
             if (points.length > 0) {
 
                 for (let i = 0; i < points.length; i++) {
-
-                    // Если найдена конечная точка, возвращаем цепь.
-                    /*if ((firstElem.i == points[i].i) && (firstElem.j == points[i].j) && chain.length > 3) {
-                        return chain;
-                    }*/
 
                     let chain_tmp = chain.slice(0, chain.length);
                     chain_tmp.push(points[i]);
@@ -286,8 +337,6 @@ class TransportTask {
                 return false;
             }
         }
-
-
 
         let chain = false;
 
@@ -315,20 +364,17 @@ class TransportTask {
     }
 
     checkSolution(distribution) {
-        let rating = [];
+        let rating = 0;
         let root_points = [];
 
         for (let i = 0; i < PROVIDERS_COUNT; i++) {
-            rating.push([]);
             for (let j = 0; j < CONSUMERS_COUNT; j++) {
                 if (distribution[i][j] === '-') {
-                    rating[i][j] = this.prices[i][j] - this.providers[i].potential - this.consumers[j].potential;
+                    rating = this.prices[i][j] - this.providers[i].potential - this.consumers[j].potential;
 
-                    if (rating[i][j] < 0)
-                        root_points.push( new Point(i, j, rating[i][j]));
+                    if (rating < 0)
+                        root_points.push( new Point(i, j, rating));
 
-                } else {
-                    rating[i][j] = 0;
                 }
             }
         }
@@ -347,6 +393,10 @@ class TransportTask {
     }
 
     checkPotentials(distribution) {
+        let prices     =  this.prices;
+        let providers  =  this.providers;
+        let consumers  =  this.consumers;
+
         // Функция выводит список потенциалов поставщиков и потребителей.
         function createPotentialsTable() {
             let string = '';
@@ -414,12 +464,7 @@ class TransportTask {
             }
         }
 
-        // Функции для вычисления потенциалов потребителей и поставщиков.
-        let prices    = this.prices;
-        let providers = this.providers;
-        let consumers = this.consumers;
-
-        function calcConsumersPotentials(provider_index, counter){
+        function calcConsumersPotentials(provider_index){
             let i = provider_index;
             let need_to_calc = [];
 
@@ -437,17 +482,12 @@ class TransportTask {
 
             }
 
-            counter--;
-
-            if (counter < 0)
-                return;
-
             need_to_calc.forEach(function(item){
-                calcProvidersPotentials(item, counter);
+                calcProvidersPotentials(item);
             });
         }
 
-        function calcProvidersPotentials(consumer_index, counter){
+        function calcProvidersPotentials(consumer_index){
             let j = consumer_index;
             let need_to_calc = [];
 
@@ -463,85 +503,18 @@ class TransportTask {
                 }
             }
 
-            counter--;
-
-            if (counter < 0)
-                return;
-
             need_to_calc.forEach(function(item){
-                calcConsumersPotentials(item, counter);
+                calcConsumersPotentials(item);
             });
         }
-
-
-        var allPotentialsAreCalculated = true;
 
         // Корректировка количества базисных точек.
         checkAndRecalculateBasis.call(this, distribution);
 
-
-        let potentialsAreCalculated = true;
         // Обнуляем потенциалы и вычисляем новые.
-        // Первая попытка вычислить потенциалы из левого верхнего угла
-        // при 0 потенциале у первого поставщика.
         this.resetPotentials();
         this.providers[0].potential = 0;
-        calcConsumersPotentials(0, 5);
-
-        /*for (let i = 0; i < PROVIDERS_COUNT; i++) {
-            for (let j = 0; j < CONSUMERS_COUNT; j++) {
-                if (distribution[i][j] !== '-') {
-
-                    if ((this.consumers[j].potential === undefined) &&
-                        (this.providers[i].potential !== undefined)) {
-                        this.consumers[j].potential = this.prices[i][j] - this.providers[i].potential;
-                    } else
-
-                    if ((this.providers[i].potential === undefined) &&
-                        (this.consumers[j].potential !== undefined)) {
-                        this.providers[i].potential = this.prices[i][j] - this.consumers[j].potential;
-                    } else
-
-                    if ((this.providers[i].potential === undefined) &&
-                        (this.consumers[j].potential === undefined)) {
-                        console.log("Cant calculate potentials (1)");
-                        console.log(i);
-                        console.log(j);
-                        potentialsAreCalculated  = false;
-                    }
-                }
-            }
-        }*/
-
-        // Если при первой попытке не вышло рассчитать все потенциалы
-        // пробуем рассчитать потенциалы из правого нижнего угла при 0 потенциале у последнего поставщика.
-        if (!potentialsAreCalculated){
-            console.log(`Second try to calculate potentials`);
-            this.resetPotentials();
-            this.providers[PROVIDERS_COUNT-1].potential = 0;
-            for (let i = PROVIDERS_COUNT-1; i >= 0; i--) {
-                for (let j = CONSUMERS_COUNT-1; j >= 0; j--) {
-                    if (distribution[i][j] !== '-') {
-                        if ((this.consumers[j].potential === undefined) &&
-                            (this.providers[i].potential !== undefined)) {
-                            this.consumers[j].potential = this.prices[i][j] - this.providers[i].potential;
-                        } else
-
-                        if ((this.providers[i].potential === undefined) &&
-                            (this.consumers[j].potential !== undefined)) {
-                            this.providers[i].potential = this.prices[i][j] - this.consumers[j].potential;
-                        } else
-
-                        if ((this.providers[i].potential === undefined) &&
-                            (this.consumers[j].potential === undefined)) {
-                            console.log("Cant calculate potentials (2)");
-                            console.log(i);
-                            console.log(j);
-                        }
-                    }
-                }
-            }
-        }
+        calcConsumersPotentials(0, 10);
 
         this.addSolutionText(createPotentialsTable.call(this));
     }
@@ -554,12 +527,9 @@ class TransportTask {
         this.consumers.forEach((item) => {
             item.potential = undefined;
         })
-
-        //this.providers[0].potential = 0;
     }
 
     calculateNorthWestMethod() {
-
         this.addSolutionText(`<br><b>Расчет опорного плана методом северо-западного угла.<b> `);
 
         let needs_left = this.needs.slice(0, this.needs.length);
@@ -594,7 +564,6 @@ class TransportTask {
             }
         }
 
-
         // Вычисление целевой функции.
         let sum = 0;
         for (let i = 0; i < PROVIDERS_COUNT; i++) {
@@ -604,8 +573,6 @@ class TransportTask {
                 }
             }
         }
-
-        //checkAndRecalculateBasis.call(this, distribution);
 
         this.addSolutionText(this.createSolutionTable(distribution));
         this.addSolutionText(`Сумма перевозок в опорном плате равна <b>${sum}</b>. `);
@@ -624,6 +591,13 @@ class TransportTask {
     }
 
     getTaskValues() {
+        this.needs = [];
+        this.prices = [];
+        this.reserves = [];
+
+        this.providers = [];
+        this.consumers = [];
+
         let prices_inputs = createArrayFromNodeList(document.querySelectorAll(`input[id*='price']`));
         let reserve_inputs = createArrayFromNodeList(document.querySelectorAll(`input[id*='reserve']`));
         let needs_inputs = createArrayFromNodeList(document.querySelectorAll(`input[id*='need']`));
@@ -820,11 +794,91 @@ class TransportTask {
         }
     }
 
+    createTable(){
+        this.solutionDiv.innerHTML = ' ';
+
+        let table_html = "<table>";
+
+        // Creating thead Part;
+        table_html += `<thead>
+                       <tr>
+                            <td rowspan="2">${PROVIDERS_LABEL}</td>
+                            <td rowspan="2">${RESERVE_LABEL}</td>
+                            <td colspan="${CONSUMERS_COUNT}">${CONSUMERS_LABEL}</td>
+                       </tr>
+                       <tr>
+                   `;
+        for (let i = 0; i < CONSUMERS_COUNT; i++) {
+            table_html += `<td>B${i}</td>`;
+        }
+        table_html += `</tr></thead>`;
+
+
+        //Creating tbody part;
+        table_html += `<tbody>`;
+
+        for (let i = 0; i < PROVIDERS_COUNT; i++) {
+            table_html += `<tr>`;
+
+            table_html += `<td>A${i}</td>`;
+            table_html += `<td><input type="text" id="reserve_${i}"></td>`;
+            for (let j = 0; j < CONSUMERS_COUNT; j++) {
+                table_html += `<td><input type="text" id="price_${i}${j}"></td>`;
+            }
+
+            table_html += `</tr>`;
+        }
+
+        table_html += `<tr>
+                        <td colspan="2">${NEEDS_LABEL}</td>
+                    `;
+        for (let i = 0; i < CONSUMERS_COUNT; i++) {
+            table_html += `<td><input type="text" id="need_${i}"></td>`;
+        }
+
+        table_html += `</tr></table>`;
+
+
+        this.taskDiv.innerHTML = table_html;
+    }
+
     addSolutionText(text) {
         this.solutionDiv.innerHTML += text;
     }
 
 }
+
+
+
+function main () {
+    let ts = new TransportTask();
+
+    document.getElementById('consumers-count').value = CONSUMERS_COUNT;
+    document.getElementById('providers-count').value = PROVIDERS_COUNT;
+
+    document.getElementById('create-table').onclick = function () {
+        let consumers_count = document.getElementById('consumers-count').value * 1;
+        let providers_count = document.getElementById('providers-count').value * 1;
+
+        console.log(`PRC=${providers_count} CNC=${consumers_count}`);
+
+        if (consumers_count > 1 && providers_count > 2){
+            PROVIDERS_COUNT = providers_count;
+            CONSUMERS_COUNT = consumers_count;
+        }
+
+        ts.createTable();
+
+    }
+
+    document.getElementById('calculate-task').onclick = function (){
+        ts.solveTheTask();
+    }
+}
+
+main();
+
+
 
 
 class Provider {
@@ -850,5 +904,3 @@ class Point {
         this.value = value;
     }
 }
-
-let ts = new TransportTask();
