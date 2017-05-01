@@ -60,7 +60,7 @@ class TransportTask {
 
             if (i == MAX_ITERATIONS_COUNT-1){
                 this.addSolutionText(`<h2 style="color:red">Количество итераций расчета превысило максимальное значение. 
-                Возможно решение задачи зациклилось или необходимо увеличить переменную MAX_ITERATIONS_COUNT=${MAX_ITERATIONS_COUNT}.</h2>`);
+                Возможно решение задачи зациклилось.</h2>`);
             }
         }
     }
@@ -233,22 +233,30 @@ class TransportTask {
 
             // Если в ходе поиска по строке была найдена хотя бы одна точка.
             if (points.length > 0) {
+                let results        = [];
+                let shortest_chain = false;
 
+                // Запускаем поиск дальше по всем найденным точкам.
                 for (let i = 0; i < points.length; i++) {
-
-                    // Если найдена конечная точка, возвращаем цепь.
-                    /*if ((firstElem.i == points[i].i) && (firstElem.j == points[i].j) && chain.length > 3) {
-                        return chain;
-                    }*/
-
                     let chain_tmp = chain.slice(0, chain.length);
                     chain_tmp.push(points[i]);
 
-                    let result = findPointVertical(chain_tmp);
-                    if (result) {
-                        return result;
+                    results.push( findPointVertical(chain_tmp) );
+                }
+
+                // Нахождение самой короткой из найденных цепей.
+                for (let i = 0; i < results.length; i++){
+                    if (results[i] !== false){
+
+                        if (!shortest_chain)
+                            shortest_chain = results[i];
+
+                        if (shortest_chain.length > results[i].length)
+                            shortest_chain = results[i];
                     }
                 }
+
+                return shortest_chain;
 
             } else {
                 return false;
@@ -318,49 +326,71 @@ class TransportTask {
                     return -1;
             });
 
-            // Если в ходе поиска по столбцу была найдена хотя бы одна точка,
-            // продолжаем поиск по строкам.
+            // Если в ходе поиска по столбцу была найдена хотя бы одна точка.
             if (points.length > 0) {
+                let results = [];
+                let shortest_chain = false;
 
+                // Запуск поиска дальше.
                 for (let i = 0; i < points.length; i++) {
-
                     let chain_tmp = chain.slice(0, chain.length);
                     chain_tmp.push(points[i]);
 
-                    let result = findPointHorizontal(chain_tmp);
-                    if (result) {
-                        return result;
+                    results.push( findPointHorizontal(chain_tmp) );
+                }
+
+                // Нахождение самой короткой из найденных цепей.
+                for (let i = 0; i < results.length; i++){
+                    if (results[i] !== false){
+
+                        if (!shortest_chain)
+                            shortest_chain = results[i];
+
+                        if (shortest_chain.length > results[i].length)
+                            shortest_chain = results[i];
                     }
                 }
+
+                return shortest_chain;
 
             } else {
                 return false;
             }
         }
 
-        let chain = false;
-
         for (let i = 0; i < root_points.length; i++){
 
             console.log(`Trying to find chain with vertex in [${root_points[i].i}][${root_points[i].j}]`);
 
-            let chain_start = [ root_points[i] ];
+            let chain_start_h = [ root_points[i] ],
+                chain_start_v = [ root_points[i] ];
 
-            // Пробуем начать поиск цепи по горизонтали.
-            let chain = findPointHorizontal(chain_start);
+            // Ищем цепи начиная по вертикали и горизонтали.
+            let chain_h = findPointHorizontal(chain_start_h);
+            let chain_v = findPointVertical(chain_start_v);
 
-            if (!chain) {
-                // Если поиск по горизонтали не удался, ищем по вертикали.
-                chain = findPointVertical(chain_start);
-                console.log(`[x] Finding a chain by vertex in[${root_points[i].i}][${root_points[i].j}] failed.`);
+            if (chain_h && chain_v){
+
+                if (chain_h.length > chain_v.length){
+                    return chain_v;
+
+                } else
+                    return chain_h;
 
             } else {
-                console.log(chain);
-                return chain;
+
+                if (chain_h)
+                    return chain_h;
+
+                if (chain_v)
+                    return chain_v;
             }
+
+            console.log(`[x] Finding a chain by vertex in[${root_points[i].i}][${root_points[i].j}] failed.`);
         }
 
-        return chain;
+        console.log(` [x] No chains has been found. `);
+        return false;
     }
 
     checkSolution(distribution) {
@@ -862,7 +892,7 @@ function main () {
 
         console.log(`PRC=${providers_count} CNC=${consumers_count}`);
 
-        if (consumers_count > 1 && providers_count > 2){
+        if (consumers_count > 1 && providers_count > 1){
             PROVIDERS_COUNT = providers_count;
             CONSUMERS_COUNT = consumers_count;
         }
